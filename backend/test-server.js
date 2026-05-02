@@ -1,0 +1,25 @@
+// Simple test script to verify backend setup
+console.log('University Announcement System - Backend Test');
+console.log('==========================================');
+console.log('Backend components:');
+console.log('- Server: Express.js');
+console.log('- Database: MongoDB with Mongoose');
+console.log('- Authentication: JWT');
+console.log('- File Upload: Multer + Cloudinary');
+console.log('- Real-time: Socket.io');
+console.log('');
+console.log('Models:');
+console.log('- User (name, email, role, department, section, rollNumber)');
+console.log('- Announcement (title, description, files, section, postedBy)');
+console.log('- Department (name, sections)');
+console.log('');
+console.log('Routes:');
+console.log('- Auth: /api/auth/*');
+console.log('- Announcements: /api/announcements/*');
+console.log('- Departments: /api/departments/*');
+console.log('- Users: /api/users/*');
+console.log('');
+console.log('To run the backend:');
+console.log('1. Make sure MongoDB is running');
+console.log('2. Update .env with your configuration');
+console.log('3. Run: npm start');

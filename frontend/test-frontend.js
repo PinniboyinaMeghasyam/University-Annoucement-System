@@ -1,0 +1,24 @@
+// Simple test script to verify frontend setup
+console.log('University Announcement System - Frontend Test');
+console.log('===========================================');
+console.log('Frontend components:');
+console.log('- Framework: React.js');
+console.log('- UI Library: Material UI (MUI)');
+console.log('- Animations: Framer Motion');
+console.log('- Routing: React Router');
+console.log('- State Management: React Context API');
+console.log('- HTTP Client: Axios');
+console.log('- Real-time: Socket.io Client');
+console.log('');
+console.log('Components:');
+console.log('- Header (navigation, dark mode toggle)');
+console.log('- Login/Register forms');
+console.log('- Dashboard (role-based)');
+console.log('- Announcements list/view');
+console.log('- Create announcement form');
+console.log('- Departments management (admin only)');
+console.log('');
+console.log('To run the frontend:');
+console.log('1. Install dependencies: npm install');
+console.log('2. Run development server: npm start');
+console.log('3. Access at: http://localhost:3000');
