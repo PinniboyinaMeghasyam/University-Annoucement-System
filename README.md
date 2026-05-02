@@ -259,6 +259,32 @@ For testing purposes, you can create the following users:
    - Section: Section-A
    - Roll Number: CS2023001
 
+## 🚀 Vercel Deployment
+
+This project is configured for Vercel deployment using the `experimentalServices` monorepo structure.
+
+### Configuration
+The `vercel.json` at the root handles both services:
+- **Frontend**: Standard React application (`/`)
+- **Backend**: Express API (`/_/backend`)
+
+### API Routing
+The frontend is configured to communicate with the backend through a Vercel rewrite. Any request to `/api/*` will be internally routed to the backend service.
+
+### Environment Variables for Vercel
+When deploying to Vercel, ensure you add the following Environment Variables in the project settings:
+
+**Backend Service:**
+- `MONGODB_URI`: Your MongoDB connection string
+- `JWT_SECRET`: Your secret key for JWT
+- `CLOUDINARY_CLOUD_NAME`: Your Cloudinary cloud name
+- `CLOUDINARY_API_KEY`: Your Cloudinary API key
+- `CLOUDINARY_API_SECRET`: Your Cloudinary API key secret
+- `VERCEL`: Set to `true`
+
+**Frontend Service:**
+- `REACT_APP_API_URL`: Set to `/api` (this works because of the Vercel rewrite)
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please fork the repository and submit a pull request with your changes.
