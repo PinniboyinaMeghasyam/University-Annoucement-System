@@ -1,0 +1,13 @@
+{
+  "name": "university-announcement-system",
+  "version": "1.0.0",
+  "description": "Root package for University Announcement System",
+  "scripts": {
+    "start": "npm start --prefix backend",
+    "build": "npm install --prefix backend",
+    "postinstall": "npm install --prefix backend"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
