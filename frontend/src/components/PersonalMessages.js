@@ -90,6 +90,8 @@ const PersonalMessages = () => {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [emojiAnchorEl, setEmojiAnchorEl] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [forwardingFromId, setForwardingFromId] = useState(null);
+  const [forwardedFiles, setForwardedFiles] = useState([]);
 
   // Refs
   const messagesEndRef = useRef(null);
@@ -161,6 +163,20 @@ const PersonalMessages = () => {
       });
     };
   }, [files]);
+  
+  // 4. Handle Forwarding State from Navigation
+  useEffect(() => {
+    if (location.state?.forwardingMessage) {
+      const msg = location.state.forwardingMessage;
+      setMessageInput(msg.content || '');
+      setForwardingFromId(msg._id);
+      if (msg.files && msg.files.length > 0) {
+        setForwardedFiles(msg.files);
+      }
+      // Clear location state so it doesn't trigger again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // --- Data Fetching ---
 
@@ -345,6 +361,13 @@ const PersonalMessages = () => {
       formData.append('files', file);
     });
 
+    if (forwardingFromId) {
+      formData.append('forwardingFrom', JSON.stringify({ messageId: forwardingFromId }));
+    }
+    if (forwardedFiles.length > 0) {
+      formData.append('forwardedFiles', JSON.stringify(forwardedFiles));
+    }
+
     try {
       const response = await api.post('/personal-messages', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -362,6 +385,8 @@ const PersonalMessages = () => {
 
       setMessageInput('');
       setFiles([]);
+      setForwardingFromId(null);
+      setForwardedFiles([]);
       
       // Conversation list will update via socket
     } catch (error) {
@@ -741,8 +766,16 @@ const PersonalMessages = () => {
       </Box>
 
       {/* File Preview Area */}
-      {filePreviews.length > 0 && (
+      {(filePreviews.length > 0 || forwardedFiles.length > 0 || forwardingFromId) && (
         <Box sx={{ p: 1, bgcolor: 'background.paper', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+          {forwardingFromId && (
+            <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 0.5, fontWeight: 'bold' }}>
+              Forwarding message...
+              <IconButton size="small" onClick={() => { setForwardingFromId(null); setForwardedFiles([]); }} sx={{ ml: 1, p: 0 }}>
+                <Close fontSize="inherit" />
+              </IconButton>
+            </Typography>
+          )}
           <Box display="flex" gap={1} overflow="auto">
             {filePreviews.map((preview, idx) => (
               <Box key={idx} position="relative" sx={{ width: 60, height: 60, flexShrink: 0 }}>
@@ -760,6 +793,28 @@ const PersonalMessages = () => {
                       const newFiles = [...files];
                       newFiles.splice(idx, 1);
                       setFiles(newFiles);
+                    }}
+                 >
+                   <Close fontSize="small" />
+                 </IconButton>
+              </Box>
+            ))}
+            {forwardedFiles.map((f, idx) => (
+              <Box key={`fwd-${idx}`} position="relative" sx={{ width: 60, height: 60, flexShrink: 0 }}>
+                 {(f.fileType === 'image' || (f.url && f.url.match(/\.(jpg|jpeg|png|gif|webp)$/i))) ? (
+                   <img src={f.url} alt="forwarded" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4 }} />
+                 ) : (
+                   <Box width="100%" height="100%" display="flex" alignItems="center" justifyContent="center" bgcolor="grey.200" borderRadius={1}>
+                     <AttachFile />
+                   </Box>
+                 )}
+                 <IconButton 
+                    size="small" 
+                    sx={{ position: 'absolute', top: -5, right: -5, bgcolor: 'white', p: 0.2, '&:hover': { bgcolor: 'grey.200' } }}
+                    onClick={() => {
+                      const newFiles = [...forwardedFiles];
+                      newFiles.splice(idx, 1);
+                      setForwardedFiles(newFiles);
                     }}
                  >
                    <Close fontSize="small" />

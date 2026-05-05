@@ -225,9 +225,10 @@ const Announcements = () => {
     socketRef.current.on('deleteAnnouncement', handleDeleteAnnouncement);
 
     const handleNewGroupMessage = (data) => {
-      if (groupInfo && data?.message?.groupId === groupInfo._id) {
+      const gid = data?.groupId || data?.message?.groupId;
+      if (groupInfo && String(gid) === String(groupInfo._id)) {
         setGroupChatMessages(prev => {
-          const exists = prev.some(m => m._id === data.message._id);
+          const exists = prev.some(m => String(m._id) === String(data.message._id));
           if (!exists && data.message.sender._id !== user._id) {
             socketRef.current.emit('groupMessageDelivered', {
               messageId: data.message._id,
@@ -237,7 +238,6 @@ const Announcements = () => {
           return exists ? prev : [...prev, data.message];
         });
       }
-      const gid = data?.message?.groupId;
       if (gid) {
         api.get('/group-messages/summary', { params: { groupId: gid } })
           .then(r => {
@@ -352,6 +352,24 @@ const Announcements = () => {
       }
     };
   }, [socketRef, feedTab, selectedGroupId, groupInfo]);
+  
+  useEffect(() => {
+    if (socketRef.current) {
+      const gids = [];
+      if (groupInfo?._id) gids.push(groupInfo._id);
+      if (selectedGroupId) gids.push(selectedGroupId);
+      
+      gids.forEach(gid => {
+        socketRef.current.emit('joinGroup', gid);
+      });
+
+      return () => {
+        gids.forEach(gid => {
+          socketRef.current.emit('leaveGroup', gid);
+        });
+      };
+    }
+  }, [groupInfo?._id, selectedGroupId, socketRef]);
   useEffect(() => {
     const el = groupChatScrollRef.current;
     if (el) {
@@ -782,7 +800,7 @@ const Announcements = () => {
       setGroupChatMessages(prev => {
         const incoming = resp.data?.data;
         if (!incoming) return prev;
-        const exists = prev.some(m => m._id === incoming._id);
+        const exists = prev.some(m => String(m._id) === String(incoming._id));
         return exists ? prev : [...prev, incoming];
       });
       setGroupChatInput('');

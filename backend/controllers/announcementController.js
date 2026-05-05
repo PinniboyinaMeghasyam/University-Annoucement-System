@@ -353,10 +353,14 @@ const getGroupAnnouncements = async (req, res) => {
     const Group = require('../models/Group');
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const isTeacher = group.teacherId.toString() === req.user._id.toString();
-    const isMember = group.studentIds.map(id => id.toString()).includes(req.user._id.toString());
-    if (!isTeacher && !isMember && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied to this group' });
+    
+    const isCreator = group.createdBy && group.createdBy.toString() === req.user._id.toString();
+    const isMember = group.memberIds && group.memberIds.map(id => id.toString()).includes(req.user._id.toString());
+    const isAdmin = req.user.role === 'admin';
+    const isTeacher = req.user.role === 'teacher'; // Teachers can see group announcements even if not members
+    
+    if (!isCreator && !isMember && !isAdmin && !isTeacher) {
+      return res.status(403).json({ message: `Access denied to group announcements. User ${req.user._id} is not a member or creator of group ${groupId}.` });
     }
     const { page = 1, limit = 10 } = req.query;
     const announcements = await Announcement.find({

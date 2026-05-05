@@ -3,20 +3,30 @@ const Group = require('../models/Group');
 const GroupMessage = require('../models/GroupMessage');
 
 const canPostToGroup = async (user, group) => {
-  // Check if user is member or admin/teacher
   const isMember = group.memberIds.some(id => id.toString() === user._id.toString());
-  const isCreator = group.createdBy.toString() === user._id.toString();
-  return isMember || isCreator || user.role === 'admin' || user.role === 'teacher';
+  const isCreator = group.createdBy && group.createdBy.toString() === user._id.toString();
+  const isAdmin = user.role === 'admin';
+  const isTeacher = user.role === 'teacher';
+  
+  if (isMember || isCreator || isAdmin || isTeacher) return { allowed: true };
+  
+  return { 
+    allowed: false, 
+    reason: `User ${user._id} is not a member or creator of group ${group._id}. Role: ${user.role}` 
+  };
 };
 
 const sendMessage = async (req, res) => {
   try {
     const { id } = req.params;
     const { content } = req.body;
-    const group = await Group.findById(id);
+    const groupId = id || req.body.groupId;
+    if (!groupId) return res.status(400).json({ message: 'groupId is required' });
+
+    const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied to this group' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
 
     const files = [];
     if (req.files) {
@@ -32,7 +42,7 @@ const sendMessage = async (req, res) => {
     }
 
     const messageData = {
-      groupId: id,
+      groupId: groupId,
       sender: req.user._id,
       content,
       files,
@@ -55,10 +65,8 @@ const sendMessage = async (req, res) => {
     ]);
 
     const io = req.app.get('socketio');
-    // Emit to all group members
-    for (const memberId of group.memberIds) {
-      io.to(memberId.toString()).emit('newGroupMessage', { message, groupId: id });
-    }
+    // Emit to group room
+    io.to(`group_${groupId}`).emit('newGroupMessage', { message, groupId });
 
     res.status(201).json({ message: 'Message sent', data: message });
   } catch (error) {
@@ -69,18 +77,19 @@ const sendMessage = async (req, res) => {
 const getMessages = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id) {
+    const groupId = id || req.query.groupId;
+    if (!groupId) {
       return res.status(400).json({ message: 'groupId is required' });
     }
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
       return res.status(400).json({ message: 'Invalid groupId' });
     }
-    const group = await Group.findById(id);
+    const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied to this group' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
 
-    const messages = await GroupMessage.find({ groupId: id, deletedFor: { $ne: req.user._id } })
+    const messages = await GroupMessage.find({ groupId: groupId, deletedFor: { $ne: req.user._id } })
       .populate({ path: 'sender', select: 'name role _id' })
       .populate({ path: 'replyingTo', select: 'content sender' })
       .populate({ path: 'forwardingFrom', select: 'content sender' })
@@ -115,7 +124,7 @@ const deleteMessage = async (req, res) => {
     const group = await Group.findById(msg.groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
     const isSender = msg.sender.toString() === req.user._id.toString();
-    const isCreator = group.createdBy.toString() === req.user._id.toString();
+    const isCreator = group.createdBy && group.createdBy.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
     const isTeacher = req.user.role === 'teacher';
     if (!isSender && !isCreator && !isAdmin && !isTeacher) {
@@ -168,8 +177,8 @@ const getSummary = async (req, res) => {
     }
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied to this group' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
     const last = await GroupMessage.findOne({ groupId }).sort({ createdAt: -1 }).populate({ path: 'sender', select: 'name role _id' });
     const unreadCount = await GroupMessage.countDocuments({
       groupId,
@@ -198,8 +207,8 @@ const toggleReaction = async (req, res) => {
     if (!msg) return res.status(404).json({ message: 'Message not found' });
     
     const group = await Group.findById(msg.groupId);
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
 
     const existingIndex = msg.reactions.findIndex(
       r => r.user.toString() === req.user._id.toString() && r.emoji === emoji
@@ -221,9 +230,7 @@ const toggleReaction = async (req, res) => {
     // Re-populate if needed or just send the updated reactions
     // Emit to all group members
     const updateData = { messageId: msg._id, groupId: msg.groupId, reactions: msg.reactions };
-    for (const memberId of group.memberIds) {
-      io.to(memberId.toString()).emit('groupMessageReaction', updateData);
-    }
+    io.to(`group_${msg.groupId}`).emit('groupMessageReaction', updateData);
 
     res.json({ message: 'Reaction updated', reactions: msg.reactions });
   } catch (error) {
@@ -236,8 +243,8 @@ const createPoll = async (req, res) => {
     const { groupId, question, options, allowMultipleAnswers } = req.body;
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
 
     const pollOptions = options.map(opt => ({ text: opt, votes: [] }));
 
@@ -257,10 +264,8 @@ const createPoll = async (req, res) => {
     await message.populate({ path: 'sender', select: 'name role _id' });
 
     const io = req.app.get('socketio');
-    // Emit to all group members
-    for (const memberId of group.memberIds) {
-      io.to(memberId.toString()).emit('newGroupMessage', { message, groupId });
-    }
+    // Emit to group room
+    io.to(`group_${groupId}`).emit('newGroupMessage', { message, groupId });
 
     res.status(201).json({ message: 'Poll created', data: message });
   } catch (error) {
@@ -276,8 +281,8 @@ const votePoll = async (req, res) => {
     if (!msg || msg.type !== 'poll') return res.status(404).json({ message: 'Poll not found' });
 
     const group = await Group.findById(msg.groupId);
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
 
     const poll = msg.poll;
     const userId = req.user._id;
@@ -307,10 +312,8 @@ const votePoll = async (req, res) => {
 
     const io = req.app.get('socketio');
     const updateData = { messageId: msg._id, groupId: msg.groupId, poll: msg.poll };
-    // Emit to all group members
-    for (const memberId of group.memberIds) {
-      io.to(memberId.toString()).emit('groupMessagePollUpdate', updateData);
-    }
+    // Emit to group room
+    io.to(`group_${msg.groupId}`).emit('groupMessagePollUpdate', updateData);
 
     res.json({ message: 'Vote recorded', poll: msg.poll });
   } catch (error) {
@@ -326,7 +329,7 @@ const pinMessage = async (req, res) => {
     if (!msg) return res.status(404).json({ message: 'Message not found' });
     const group = await Group.findById(msg.groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const isCreator = group.createdBy.toString() === req.user._id.toString();
+    const isCreator = group.createdBy && group.createdBy.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
     const isTeacher = req.user.role === 'teacher';
     if (!isCreator && !isAdmin && !isTeacher) {
@@ -336,10 +339,8 @@ const pinMessage = async (req, res) => {
     await msg.save();
     const io = req.app.get('socketio');
     const payload = { messageId: msg._id, groupId: msg.groupId, pin: !!pin };
-    // Emit to all group members
-    for (const memberId of group.memberIds) {
-      io.to(memberId.toString()).emit('groupMessagePinned', payload);
-    }
+    // Emit to group room
+    io.to(`group_${msg.groupId}`).emit('groupMessagePinned', payload);
     res.json({ message: `Message ${pin ? 'pinned' : 'unpinned'} successfully`, data: msg });
   } catch (error) {
     res.status(500).json({ message: 'Failed to pin message: ' + error.message });
@@ -353,8 +354,8 @@ const toggleStar = async (req, res) => {
     if (!msg) return res.status(404).json({ message: 'Message not found' });
     const group = await Group.findById(msg.groupId);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    const allowed = await canPostToGroup(req.user, group);
-    if (!allowed) return res.status(403).json({ message: 'Access denied' });
+    const check = await canPostToGroup(req.user, group);
+    if (!check.allowed) return res.status(403).json({ message: 'Access denied: ' + check.reason });
     const uid = req.user._id.toString();
     const current = (msg.isStarredBy || []).map(id => id.toString());
     if (current.includes(uid)) {
@@ -365,10 +366,8 @@ const toggleStar = async (req, res) => {
     await msg.save();
     const io = req.app.get('socketio');
     const payload = { messageId: msg._id, groupId: msg.groupId, isStarredBy: msg.isStarredBy };
-    // Emit to all group members
-    for (const memberId of group.memberIds) {
-      io.to(memberId.toString()).emit('groupMessageStarred', payload);
-    }
+    // Emit to group room
+    io.to(`group_${msg.groupId}`).emit('groupMessageStarred', payload);
     res.json({ message: 'Star status updated', data: msg });
   } catch (error) {
     res.status(500).json({ message: 'Failed to star message: ' + error.message });
@@ -387,7 +386,7 @@ const getMessageInfo = async (req, res) => {
     if (!group) return res.status(404).json({ message: 'Group not found' });
 
     // Check if user is creator, teacher, or admin
-    const isCreator = group.createdBy.toString() === req.user._id.toString();
+    const isCreator = group.createdBy && group.createdBy.toString() === req.user._id.toString();
     if (!isCreator && req.user.role !== 'admin' && req.user.role !== 'teacher') {
        return res.status(403).json({ message: 'Only teacher/admin can view read receipts' });
     }

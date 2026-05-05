@@ -103,7 +103,7 @@ const createGroup = async (req, res) => {
       subject,
       section,
       createdBy: req.user._id,
-      memberIds: [],
+      memberIds: [req.user._id],
       qrToken: crypto.randomBytes(16).toString('hex'),
       isAutoManaged: groupType === 'ACADEMIC' && (year || branch) ? true : false
     });
@@ -187,8 +187,8 @@ const getGroupInfo = async (req, res) => {
     const isCreator = group.createdBy._id.toString() === req.user._id.toString();
     const isMember = group.memberIds.some(m => m._id.toString() === req.user._id.toString());
 
-    if (!isCreator && !isMember && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
+    if (!isCreator && !isMember && req.user.role !== 'admin' && req.user.role !== 'teacher') {
+      return res.status(403).json({ message: 'Access denied: User is not authorized to view this group' });
     }
 
     res.json({ group });

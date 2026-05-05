@@ -291,4 +291,5 @@ Contributions are welcome! Please fork the repository and submit a pull request 
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.#   U n i v e r s i t y - A n n o u c e m e n t - S y s t e m  
+ 

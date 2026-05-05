@@ -191,9 +191,10 @@ const AdminMessages = () => {
     const socket = socketRef.current;
 
     const handleNewGroupMessage = (data) => {
-      if (data.groupId === selectedGroup?._id) {
+      const gid = data?.groupId || data?.message?.groupId;
+      if (selectedGroup && String(gid) === String(selectedGroup._id)) {
         setGroupMessages(prev => {
-          const exists = prev.some(msg => msg._id === data.message._id);
+          const exists = prev.some(msg => String(msg._id) === String(data.message._id));
           if (exists) return prev;
           return [...prev, data.message];
         });
@@ -279,7 +280,11 @@ const AdminMessages = () => {
       // The backend returns the message in response.data.data
       const message = response.data.data || response.data.message;
       if (message && typeof message === 'object') {
-        setGroupMessages(prev => [...prev, message]);
+        setGroupMessages(prev => {
+          const exists = prev.some(m => String(m._id) === String(message._id));
+          if (exists) return prev;
+          return [...prev, message];
+        });
       }
       setNewMessage('');
       setFiles([]);
