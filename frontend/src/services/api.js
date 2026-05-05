@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
+  baseURL: process.env.REACT_APP_API_URL || 'https://university-annoucement-system.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -109,9 +109,6 @@ export const groupAPI = {
   
   // Trigger year progression (Admin only)
   triggerYearProgression: () => api.post('/groups/progression'),
-  
-  // Delete group
-  deleteGroup: (id) => api.delete(`/groups/${id}`),
   
   // Toggle reaction on message
   toggleReaction: (messageId, emoji) => api.post(`/groups/messages/${messageId}/reaction`, { emoji }),

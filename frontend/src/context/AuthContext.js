@@ -53,7 +53,8 @@ export const AuthProvider = ({ children }) => {
     }
     
     // Create new socket connection
-    socketRef.current = io('http://localhost:5001', {
+    const socketUrl = (process.env.REACT_APP_API_URL || 'https://university-annoucement-system.onrender.com').replace('/api', '');
+    socketRef.current = io(socketUrl, {
       transports: ['websocket'],
       auth: {
         token
